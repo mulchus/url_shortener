@@ -63,6 +63,19 @@ def forward_to_target_url(
         raise_not_found(request)
 
 
+@app.get("/info/{url_key}")
+def forward_to_target_url(
+        url_key: str,
+        request: Request,
+        db: Session = Depends(get_db)
+):
+    if db_url := crud.get_db_url_by_key(db=db, url_key=url_key):
+        db_url = get_admin_info(db_url)
+        return f'For {db_url.url} original url is {db_url.target_url}'
+    else:
+        raise_not_found(request)
+
+
 @app.post("/url", response_model=schemas.URLInfo)
 def create_url(url: schemas.URLBase, db: Session = Depends(get_db)):
     if not validators.url(url.target_url):
