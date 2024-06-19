@@ -4,7 +4,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.datastructures import URL
 
-from . import schemas, models, crud
+from . import schemas, models, crud, keygen
 from .database import SessionLocal, engine
 from .config import get_settings
 
@@ -80,6 +80,13 @@ def forward_to_target_url(
 def create_url(url: schemas.URLBase, db: Session = Depends(get_db)):
     if not validators.url(url.target_url):
         raise_bad_request(message="Your provided URL is not valid")
+    if url.custom_key:
+        if len(url.custom_key) != 5:
+            raise_bad_request(message="Your provided key is not 5 chars long")
+        elif not url.custom_key.isalnum():
+            raise_bad_request(message="Your provided key contains punctuation")
+        elif not keygen.check_key_uniqueness(db, url.custom_key):
+            raise_bad_request(message="Your provided key is not unique")
     db_url = crud.create_db_url(db=db, url=url)
     return get_admin_info(db_url)
 

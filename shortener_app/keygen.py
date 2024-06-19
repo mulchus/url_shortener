@@ -16,3 +16,7 @@ def create_unique_random_key(db: Session) -> str:
 def create_random_key(length: int = 5) -> str:
     chars = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
+
+
+def check_key_uniqueness(db: Session, key: str) -> bool:
+    return not crud.get_db_url_by_key(db, key)
