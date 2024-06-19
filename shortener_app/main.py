@@ -1,4 +1,5 @@
 import validators
+import httpx
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -31,18 +32,20 @@ def raise_bad_request(message):
 
 def get_admin_info(db_url: models.URL) -> schemas.URLInfo:
     base_url = URL(get_settings().base_url)
-
-    print(base_url)
-
     admin_endpoint = app.url_path_for(
         "administration info", secret_key=db_url.secret_key
     )
-
-    print(db_url.__dict__)
     db_url.url = str(base_url.replace(path=db_url.key))
     db_url.admin_url = str(base_url.replace(path=admin_endpoint))
-    print(db_url.__dict__)
     return db_url
+
+
+def check_website_exists(url: str) -> bool:
+    try:
+        response = httpx.get(url)
+    except httpx.ConnectError:
+        return False
+    return response.status_code < 400
 
 
 @app.get("/")
@@ -58,7 +61,8 @@ def forward_to_target_url(
 ):
     if db_url := crud.get_db_url_by_key(db=db, url_key=url_key):
         crud.update_db_clicks(db=db, db_url=db_url)
-        return RedirectResponse(db_url.target_url)
+        return RedirectResponse(db_url.target_url) if check_website_exists(db_url.target_url) else \
+            raise_bad_request(message="Website doesn't exist")
     else:
         raise_not_found(request)
 
@@ -80,6 +84,8 @@ def forward_to_target_url(
 def create_url(url: schemas.URLBase, db: Session = Depends(get_db)):
     if not validators.url(url.target_url):
         raise_bad_request(message="Your provided URL is not valid")
+    if not check_website_exists(url.target_url):
+        raise_bad_request(message="Website doesn't exist")
     if url.custom_key:
         if len(url.custom_key) != 5:
             raise_bad_request(message="Your provided key is not 5 chars long")
